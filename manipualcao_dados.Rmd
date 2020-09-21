@@ -1,0 +1,171 @@
+---
+title: "Manipulação de dados com R"
+author: "Fernando Almeida Barbalho"
+date: "21/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Leitura de arquivo
+
+O primeiro passo para começar a consumir dados de uma tabela é a sua leitura e armazenamento em memória.
+
+Veja abaixo um exemplo do consumo de uma tabela que tem os dados de despesas em educação dos municípios dos estados do Ceará e Pernambuco entre os anos 2015 e 2019.
+
+```{r}
+
+#install.packages("readr")
+library(readr)
+# A função read_csv se encarrega de fazer a leitura do arquivo de dados e atribuir o resultado para o dataframe desp_educacao_ce_pe
+
+desp_educacao_ce_pe <- read_csv("desp_educacao_ce_pe.csv")
+
+#Para confirmar que a exceução foi realizada com suecesso vamos usar a funçào head() que retora por default as 6 primeiras linhas
+
+head(desp_educacao_ce_pe)
+
+```
+
+## Acréscimo de colunas
+
+Muitas vezes nossas análises requerem que trabalhemos com colunas que podem ser cosntruídas a partir de outras colunas das tabelas. 
+No caso específico das despesas com educação, pode ser interessante que queiramos trabalhar com a infomração de despesa por habiatantes, criando portanto uma nova coluna a partir dessas outras duas já previamente existentes.
+
+```{r}
+#install.packages("dplyr")
+library(dplyr)
+# A library dplyr contém umas série de funções e operadores que facilitam o trabalho de dados
+# um dos operadores é o pipe %>% que informa que uma determinada operação vai ser executada sobre a tabela
+# No caso abaixo, o operador está indicando que vai ser feita a operação de mudança na estrturua da tabela usando a função mutate
+# No caso específico, a função mutate cria uma nova coluna a partir dos valores de duas colunas já existentes
+desp_educacao_ce_pe<-
+  desp_educacao_ce_pe %>%
+  mutate(despesa_por_habitante = VALUE/QT_HABITANTE )
+
+#Para saber se funcionou a criação dessa coluna podemos pedir para exibir apenas um sub-conjunto de colunas usando a funcão select. No caso vamos exibir as variáveis AN_EXERCIOCIO, NR_PERIODO, NO_ENTE,despesa_por_habitante
+
+head(
+desp_educacao_ce_pe %>%
+  select(AN_EXERCICIO, NR_PERIODO, NO_ENTE,despesa_por_habitante))
+
+
+
+```
+
+
+## Filtros
+
+Uma funcionalidade muito comum em trabalho com dados é fazer filtros. A ideia é que os dados sejam recortados para ficar apenas o que interessa para uma análise em particular.
+Vamos por exemplo filtrar as linhas da tabela que correspondem aos anos de 2018 e 2019
+
+```{r}
+
+# A função filter é a que é responsável por realizar os filtros. 
+# Como o filtro envolve mais de um elemento, usamos o operador %in%
+
+desp_educacao_ce_pe %>%
+  filter(AN_EXERCICIO %in% c(2018,2019))
+```
+
+
+## Agrupamentos
+
+Com frequência é necessário que os dados sejam agrupados pro um sub-conjunto de colunas e em seguida um valor é sumarizado.
+Podemos ver por exemplo quanto se gastou por ano no conjuntos dos municípios de Pernambuco e Ceará
+
+```{r}
+#Para fazer agrupamentos, usamos a função group_by
+
+desp_educacao_ce_pe %>%
+  group_by(AN_EXERCICIO, SG_ENTE) %>%
+  summarise(
+    sum(VALUE)) 
+```
+
+
+
+
+## Gráficos de box-plot e viloino
+
+Gráficos que mostram a distribuição são importantes para comparar como so dados se distribuem pr categorias. Podemos pr exemplo comparar a distribuição dos valores gastos em educação por habitante para cada um dos dois estados, para o ano de 2019.
+
+```{r}
+
+#install.packages("ggplot2")
+# A biblioteca ggplot2 permite a cosntrução de gráficos poderosos usando a linguagem R
+library(ggplot2)
+
+# A função geom_boxplot indica que o tipo de gráfico que vai ser desenhado será box-plot
+#A função aes indica alguns parâmetros da estetica do gráfico: os valores que vão ficar nos eixos x e y e a partir de qual variável as cores de controno serão diferenciadas 
+
+
+desp_educacao_ce_pe %>%
+  filter(AN_EXERCICIO == 2019) %>%
+  ggplot() +
+  geom_boxplot(aes(x= SG_ENTE, y= despesa_por_habitante, color= SG_ENTE))
+```
+
+
+Uma outra alternativa para visualização da distribuição é através do gráfico de violino
+
+```{r}
+
+# A função geom_boxplot indica que o tipo de gráfico que vai ser desenhado será box-plot
+#A função aes indica alguns parâmetros da estetica do gráfico: os valores que vão ficar nos eixos x e y e a partir de qual variável as cores de preencimento do gráfico serão diferenciadas 
+
+
+desp_educacao_ce_pe %>%
+  filter(AN_EXERCICIO == 2019) %>%
+  ggplot() +
+  geom_violin(aes(x= SG_ENTE, y= despesa_por_habitante, fill= SG_ENTE))
+
+```
+
+
+
+## Relacionamento com outras tabelas e gerando um mapa
+
+Uma tabela nem sempre vai possuir todas as informações que nos interessam trabalhar frequentemente é necessário que se faça cruzamentos com outras tabelas para que se tenha um conjunto completo dos dados. Podemos, por exemplo relacionar os dados de despesas com educação com os dados que possuem informações cartográficas e a partir daí montar um mapa que mostra, por exemplo como é a distribuição das despesas por habitante no último semestre do ano de 2019 para os municípios do Ceará e de Pernambuco
+
+```{r}
+#install.packages("geobr")
+#install.packages("sf")
+library(geobr)
+library(sf)
+# A library geobr é usada para fornecer dados cartográficos dos municípios
+
+#Busca as informações cartográficas dos municípios brasileiros
+#essas informações vão estar presentes na tabela muni
+muni <- read_municipality( year=2010, showProgress = FALSE )
+
+
+#para que duas taelas se relacionem precisam preferencialmente ter campos chaves com o mesmo nome, daí que é necessário se criar uma nova coluna na tabela desp_educacao. Na tabela muni existe um coluna com esse nome que tem o mesmo significado que  a coluna ID_ENTE, no caso, o código de IBGE do município. esse mesmo raciocínio se aplica à criaçao da coluna abbrev_state
+
+
+desp_educacao_ce_pe %>%
+  filter(AN_EXERCICIO == 2019, 
+         NR_PERIODO == 6) %>%
+  mutate(code_muni = ID_ENTE,
+         abbrev_state = SG_ENTE ) %>%
+  inner_join(muni) %>%
+  ggplot() +
+  geom_sf(aes(fill= despesa_por_habitante, geometry = geom) , color="gray", size=.15)  +
+  geom_sf(aes(fill= despesa_por_habitante, geometry = geom) , color="gray", size=.15)
+  
+
+
+```
+
+
+## Salvando dados
+
+Por fim quando você tiver concluído os seus tratamentos de dados, tavelz seja conveniente salvar esses dados para uso em outras situações ou mesmo em outras ferramentas.
+
+```{r}
+
+write.csv2(desp_educacao_ce_pe, file= "trabalho_dados.csv")
+```
+
